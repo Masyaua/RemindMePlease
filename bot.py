@@ -5,7 +5,7 @@ import re
 
 BOT_TOKEN = '7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc'
 CHANNEL_USERNAME = 'Stuff3D'
-RSS_FEED_URL = 'https://stlmodels.pro/feed/'
+RSS_FEED_URL = 'https://presetsfx.com/feed/'
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
