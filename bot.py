@@ -1,9 +1,11 @@
 import telebot
 import requests
+import feedparser  # pip install feedparser
+import re
 
 BOT_TOKEN = '7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc'
 CHANNEL_USERNAME = 'Stuff3D'  # без @
-DOWNLOAD_LINK = 'https://drive.google.com/...'
+RSS_FEED_URL = 'https://stlmodels.pro/feed/'  # замените на свой сайт
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -13,12 +15,25 @@ def is_subscribed(user_id):
     status = res.get("result", {}).get("status", "")
     return status in ["member", "administrator", "creator"]
 
-@bot.message_handler(commands=['start', 'get'])
-def send_file(message):
+def get_latest_download_link():
+    feed = feedparser.parse(RSS_FEED_URL)
+    if not feed.entries:
+        return None
+    post = feed.entries[0]
+    links = re.findall(r'(https?://[^\s]+)', post.summary)
+    for link in links:
+        if 'drive.google.com' in link or 'mega.nz' in link:
+            return link
+    return None
+
+@bot.message_handler(commands=['get'])
+def send_model_link(message):
     user_id = message.chat.id
     if is_subscribed(user_id):
-        bot.send_message(user_id, f"✅ Спасибо за подписку! Вот ссылка на скачивание:\n{DOWNLOAD_LINK}")
+        link = get_latest_download_link()
+        if link:
+            bot.send_message(user_id, f"🔗 Последняя STL-модель:\n{link}")
+        else:
+            bot.send_message(user_id, "❌ Не удалось найти ссылку в последнем посте.")
     else:
-        bot.send_message(user_id, f"❗ Подпишись на наш канал: https://t.me/{CHANNEL_USERNAME}\nЗатем нажми /get")
-
-bot.polling()
+        bot.send_message(user_id, f"❗ Подпишись на канал: https://t.me/{CHANNEL_USERNAME}")
