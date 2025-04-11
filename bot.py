@@ -1,11 +1,11 @@
 import telebot
 import requests
-import feedparser  # pip install feedparser
+import feedparser
 import re
 
 BOT_TOKEN = '7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc'
-CHANNEL_USERNAME = 'Stuff3D'  # без @
-RSS_FEED_URL = 'https://stlmodels.pro/feed/'  # замените на свой сайт
+CHANNEL_USERNAME = 'Stuff3D'
+RSS_FEED_URL = 'https://stlmodels.pro/feed/'
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -32,8 +32,11 @@ def send_model_link(message):
     if is_subscribed(user_id):
         link = get_latest_download_link()
         if link:
-            bot.send_message(user_id, f"🔗 Последняя STL-модель:\n{link}")
+            bot.send_message(user_id, f"🔗 Последняя STL-модель:
+{link}")
         else:
             bot.send_message(user_id, "❌ Не удалось найти ссылку в последнем посте.")
     else:
         bot.send_message(user_id, f"❗ Подпишись на канал: https://t.me/{CHANNEL_USERNAME}")
+
+bot.infinity_polling()
