@@ -32,8 +32,7 @@ def send_model_link(message):
     if is_subscribed(user_id):
         link = get_latest_download_link()
         if link:
-            bot.send_message(user_id, f"🔗 Последняя STL-модель:
-{link}")
+            bot.send_message(user_id, f"🔗 Последняя STL-модель:\n{link}")
         else:
             bot.send_message(user_id, "❌ Не удалось найти ссылку в последнем посте.")
     else:
