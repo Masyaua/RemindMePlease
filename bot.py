@@ -14,14 +14,16 @@ CHANNELS = os.getenv("CHANNELS").split(",")
 
 bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-# Проверка подписки на все каналы
+# Проверка подписки на каналы
 async def is_user_subscribed(user_id):
     for channel in CHANNELS:
         try:
-            participant = await bot.get_participant(channel, user_id)
-            if participant.participant is None:
+            participant = await bot.get_participant(f"@{channel}", user_id)
+            if participant is None:
+                print(f"Пользователь {user_id} не подписан на канал @{channel}")
                 return False
-        except:
+        except Exception as e:
+            print(f"Ошибка при проверке подписки на канал @{channel} для пользователя {user_id}: {e}")
             return False
     return True
 
@@ -31,7 +33,7 @@ async def handle_start(event):
     await event.respond(
         "👋 Привет! Чтобы получить ссылку на файл, подпишись на каналы:",
         buttons=[
-            [Button.url(f"📢 {ch}", f"https://t.me/{ch[1:]}")] for ch in CHANNELS
+            [Button.url(f"📢 {ch}", f"https://t.me/{ch}")] for ch in CHANNELS
         ] + [[Button.inline("🔁 Проверить подписку", b"check_sub")]]
     )
 
@@ -55,6 +57,6 @@ async def handle_check_subscription(event):
             await bot.send_message(user_id, "🚫 Ошибка при получении файла.")
     else:
         await event.answer("❌ Вы не подписались на все каналы.", alert=True)
-        
+
 print("🤖 Бот запущен!")
 bot.run_until_disconnected()
