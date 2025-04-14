@@ -1,53 +1,63 @@
 import telebot
 import requests
-import time
+from telebot import types
 
-# === Твой Telegram Token ===
-bot = telebot.TeleBot("7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc")
+TOKEN = '7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc'
+CHANNELS = ['@Amazing_Photoshop', '@Stuff3D']  # сюда вставь свои каналы
 
-# === Настройки сайта ===
-SITE_URL = "https://stlmodels.pro/wp-json/wp/v2/posts"
-ACF_FIELD_NAME = "download_link"
-CACHE_EXPIRATION_SECONDS = 600  # 10 минут
+bot = telebot.TeleBot(TOKEN)
 
-# === Глобальные переменные для кэша ===
-cached_link = None
-cached_time = 0
+# Проверка подписки на хотя бы один канал
+def check_subscription(user_id):
+    for channel in CHANNELS:
+        try:
+            status = bot.get_chat_member(chat_id=channel, user_id=user_id).status
+            if status in ['member', 'administrator', 'creator']:
+                return True
+        except Exception as e:
+            print(f"Ошибка при проверке канала {channel}: {e}")
+    return False
 
-# === Функция получения ссылки с кэшированием ===
-def get_latest_download_link():
-    global cached_link, cached_time
+# Команда /start
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.from_user.id
 
-    if cached_link and (time.time() - cached_time) < CACHE_EXPIRATION_SECONDS:
-        return cached_link
-
-    try:
-        response = requests.get(SITE_URL)
-        response.raise_for_status()
-        posts = response.json()
-
-        if posts and isinstance(posts, list):
-            acf_data = posts[0].get('acf', {})
-            link = acf_data.get(ACF_FIELD_NAME)
-
-            if link:
-                cached_link = link
-                cached_time = time.time()
-                return link
-
-    except Exception as e:
-        print("Ошибка при получении ссылки:", e)
-
-    return None
-
-# === Обработка команд Telegram ===
-@bot.message_handler(commands=['start', 'download'])
-def handle_start(message):
-    link = get_latest_download_link()
-    if link:
-        bot.send_message(message.chat.id, f"🔗 Ваша ссылка для скачивания:\n{link}")
+    if check_subscription(user_id):
+        # Подписан — выдаём ссылку
+        post_id = message.text.split()[-1] if len(message.text.split()) > 1 else None
+        if post_id:
+            try:
+                res = requests.get(f"https://stlmodels.pro/wp-json/wp/v2/posts/{post_id}")
+                data = res.json()
+                download_link = data.get('acf', {}).get('download_link')
+                if download_link:
+                    bot.send_message(user_id, f"✅ Вот ваша ссылка на скачивание:\n{download_link}")
+                else:
+                    bot.send_message(user_id, "⚠️ Ссылка не найдена в этом посте.")
+            except Exception as e:
+                print(e)
+                bot.send_message(user_id, "Произошла ошибка при получении данных.")
+        else:
+            bot.send_message(user_id, "Привет! Отправь команду со ссылкой на модель.")
     else:
-        bot.send_message(message.chat.id, "❌ Не удалось получить ссылку. Попробуйте позже.")
+        # Не подписан — просим подписаться
+        markup = types.InlineKeyboardMarkup()
+        for ch in CHANNELS:
+            markup.add(types.InlineKeyboardButton("📢 Перейти в канал", url=f"https://t.me/{ch[1:]}"))
+        markup.add(types.InlineKeyboardButton("🔁 Проверить подписку", callback_data="check_sub"))
+        bot.send_message(user_id, "🛑 Чтобы получить доступ, подпишись на каналы ниже:", reply_markup=markup)
 
-# === Запуск бота ===
-bot.polling()
+# Обработка нажатий кнопок
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def callback_check(call):
+    user_id = call.from_user.id
+    if check_subscription(user_id):
+        bot.answer_callback_query(call.id, "✅ Подписка подтверждена!")
+        bot.send_message(user_id, "Теперь вы можете повторно нажать на ссылку, чтобы получить файл.")
+    else:
+        bot.answer_callback_query(call.id, "❌ Вы ещё не подписались.")
+        bot.send_message(user_id, "Пожалуйста, подпишись на каналы и нажми \"Проверить подписку\".")
+
+# Запуск
+bot.infinity_polling()
