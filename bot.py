@@ -55,6 +55,6 @@ async def handle_check_subscription(event):
             await bot.send_message(user_id, "🚫 Ошибка при получении файла.")
     else:
         await event.answer("❌ Вы не подписались на все каналы.", alert=True)
-
+        
 print("🤖 Бот запущен!")
 bot.run_until_disconnected()
