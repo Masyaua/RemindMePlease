@@ -1,63 +1,60 @@
-import telebot
-import requests
-from telebot import types
+import os
+from dotenv import load_dotenv
+from telethon import TelegramClient, events, Button
+import aiohttp
 
-TOKEN = '7662884090:AAGFJzo8TRiXdVPklVD2A0VhMWFsLu6YRDc'
-CHANNELS = ['@Amazing_Photoshop', '@Stuff3D']  # сюда вставь свои каналы
+# Загрузка .env
+load_dotenv()
 
-bot = telebot.TeleBot(TOKEN)
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WORDPRESS_URL = os.getenv("WORDPRESS_URL")
+CHANNELS = os.getenv("CHANNELS").split(",")
 
-# Проверка подписки на хотя бы один канал
-def check_subscription(user_id):
+bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+
+# Проверка подписки на все каналы
+async def is_user_subscribed(user_id):
     for channel in CHANNELS:
         try:
-            status = bot.get_chat_member(chat_id=channel, user_id=user_id).status
-            if status in ['member', 'administrator', 'creator']:
-                return True
+            participant = await bot.get_participant(channel, user_id)
+            if participant.participant is None:
+                return False
+        except:
+            return False
+    return True
+
+@bot.on(events.NewMessage(pattern="/start"))
+async def handle_start(event):
+    user_id = event.sender_id
+    await event.respond(
+        "👋 Привет! Чтобы получить ссылку на файл, подпишись на каналы:",
+        buttons=[
+            [Button.url(f"📢 {ch}", f"https://t.me/{ch[1:]}")] for ch in CHANNELS
+        ] + [[Button.inline("🔁 Проверить подписку", b"check_sub")]]
+    )
+
+@bot.on(events.CallbackQuery(data=b"check_sub"))
+async def handle_check_subscription(event):
+    user_id = event.sender_id
+    if await is_user_subscribed(user_id):
+        await event.edit("✅ Подписка подтверждена! Получаю файл...")
+        # Получаем ссылку с WordPress
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{WORDPRESS_URL}/123") as resp:
+                    data = await resp.json()
+                    link = data.get("acf", {}).get("download_link")
+                    if link:
+                        await bot.send_message(user_id, f"📥 Вот ваша ссылка:\n{link}")
+                    else:
+                        await bot.send_message(user_id, "⚠️ Ссылка не найдена в ACF.")
         except Exception as e:
-            print(f"Ошибка при проверке канала {channel}: {e}")
-    return False
-
-# Команда /start
-@bot.message_handler(commands=['start'])
-def start(message):
-    user_id = message.from_user.id
-
-    if check_subscription(user_id):
-        # Подписан — выдаём ссылку
-        post_id = message.text.split()[-1] if len(message.text.split()) > 1 else None
-        if post_id:
-            try:
-                res = requests.get(f"https://stlmodels.pro/wp-json/wp/v2/posts/{post_id}")
-                data = res.json()
-                download_link = data.get('acf', {}).get('download_link')
-                if download_link:
-                    bot.send_message(user_id, f"✅ Вот ваша ссылка на скачивание:\n{download_link}")
-                else:
-                    bot.send_message(user_id, "⚠️ Ссылка не найдена в этом посте.")
-            except Exception as e:
-                print(e)
-                bot.send_message(user_id, "Произошла ошибка при получении данных.")
-        else:
-            bot.send_message(user_id, "Привет! Отправь команду со ссылкой на модель.")
+            print("Ошибка при запросе:", e)
+            await bot.send_message(user_id, "🚫 Ошибка при получении файла.")
     else:
-        # Не подписан — просим подписаться
-        markup = types.InlineKeyboardMarkup()
-        for ch in CHANNELS:
-            markup.add(types.InlineKeyboardButton("📢 Перейти в канал", url=f"https://t.me/{ch[1:]}"))
-        markup.add(types.InlineKeyboardButton("🔁 Проверить подписку", callback_data="check_sub"))
-        bot.send_message(user_id, "🛑 Чтобы получить доступ, подпишись на каналы ниже:", reply_markup=markup)
+        await event.answer("❌ Вы не подписались на все каналы.", alert=True)
 
-# Обработка нажатий кнопок
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def callback_check(call):
-    user_id = call.from_user.id
-    if check_subscription(user_id):
-        bot.answer_callback_query(call.id, "✅ Подписка подтверждена!")
-        bot.send_message(user_id, "Теперь вы можете повторно нажать на ссылку, чтобы получить файл.")
-    else:
-        bot.answer_callback_query(call.id, "❌ Вы ещё не подписались.")
-        bot.send_message(user_id, "Пожалуйста, подпишись на каналы и нажми \"Проверить подписку\".")
-
-# Запуск
-bot.infinity_polling()
+print("🤖 Бот запущен!")
+bot.run_until_disconnected()
